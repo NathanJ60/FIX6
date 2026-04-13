@@ -69,7 +69,9 @@ def _compute_signs(solution, yellows):
             b = effective(solution[r + 1][c], yellows[r + 1][c])
             if a == b:
                 return None, None, False
-            v[r][c] = 'v' if a < b else '^'
+            # Convention visuelle : 'v' (point en bas) = top > bottom ;
+            # '^' (point en haut) = top < bottom
+            v[r][c] = 'v' if a > b else '^'
     return h, v, True
 
 
@@ -81,6 +83,22 @@ def _place_yellows(num_yellows: int = 7) -> List[List[bool]]:
     for r, c in cells[:num_yellows]:
         yellows[r][c] = True
     return yellows
+
+
+def _effective_row_col_unique(solution, yellows) -> bool:
+    """Vérifie que les valeurs EFFECTIVES (après doublement jaune) sont uniques
+    par ligne ET par colonne. Évite les chaînes de comparaison visuellement
+    incohérentes (ex: ligne avec deux cases à valeur effective 6).
+    """
+    for r in range(GRID):
+        effs = [effective(solution[r][c], yellows[r][c]) for c in range(GRID)]
+        if len(set(effs)) != GRID:
+            return False
+    for c in range(GRID):
+        effs = [effective(solution[r][c], yellows[r][c]) for r in range(GRID)]
+        if len(set(effs)) != GRID:
+            return False
+    return True
 
 
 def count_solutions(hints, yellows, h_signs, v_signs, limit=2):
@@ -111,21 +129,22 @@ def count_solutions(hints, yellows, h_signs, v_signs, limit=2):
                 return False
             if sign == '>' and not (eff > ri):
                 return False
-        # Haut
+        # Haut (sign entre r-1 (top) et r (current bottom))
+        # Nouvelle convention : 'v' = top > bottom, '^' = top < bottom
         if r > 0 and grid[r - 1][c] != 0:
             up = effective(grid[r - 1][c], yellows[r - 1][c])
             sign = v_signs[r - 1][c]
-            if sign == 'v' and not (up < eff):
+            if sign == 'v' and not (up > eff):
                 return False
-            if sign == '^' and not (up > eff):
+            if sign == '^' and not (up < eff):
                 return False
-        # Bas
+        # Bas (sign entre r (current top) et r+1 (bottom))
         if r < GRID - 1 and grid[r + 1][c] != 0:
             dn = effective(grid[r + 1][c], yellows[r + 1][c])
             sign = v_signs[r][c]
-            if sign == 'v' and not (eff < dn):
+            if sign == 'v' and not (eff > dn):
                 return False
-            if sign == '^' and not (eff > dn):
+            if sign == '^' and not (eff < dn):
                 return False
         return True
 
@@ -232,12 +251,17 @@ def generate_puzzle(num_yellows: int = 7, target_hints=None,
     """
     for _ in range(max_attempts):
         solution = _random_latin_square()
-        # Retry yellow placement jusqu'à éviter l'égalité de valeurs effectives
+        # Retry yellow placement : signes stricts + valeurs effectives uniques par ligne/col
         h_signs = v_signs = None
-        for _ in range(50):
-            yellows = _place_yellows(num_yellows)
-            h_signs, v_signs, ok = _compute_signs(solution, yellows)
+        yellows = None
+        for _ in range(100):
+            yellows_try = _place_yellows(num_yellows)
+            if not _effective_row_col_unique(solution, yellows_try):
+                continue
+            h_try, v_try, ok = _compute_signs(solution, yellows_try)
             if ok:
+                yellows = yellows_try
+                h_signs, v_signs = h_try, v_try
                 break
         if h_signs is None:
             continue
@@ -292,6 +316,11 @@ def verify_puzzle(puzzle) -> bool:
     hs, vs, ok = _compute_signs(sol, yellows)
     if not ok or hs != h_signs or vs != v_signs:
         print("❌ Signes incohérents avec la solution")
+        return False
+
+    # Unicité des valeurs effectives par ligne et colonne
+    if not _effective_row_col_unique(sol, yellows):
+        print("❌ Doublon de valeur effective sur une ligne ou colonne")
         return False
 
     # Unicité
