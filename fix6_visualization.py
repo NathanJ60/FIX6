@@ -32,29 +32,68 @@ def _load_font(size):
 
 
 def _draw_chevron(draw, cx, cy, size, direction, color=SIGN_COLOR):
-    """Dessine un chevron `<`, `>`, `^` ou `v` centré en (cx, cy) avec 2 lignes épaisses."""
-    s = size // 2
-    w = max(3, size // 4)  # épaisseur du trait
+    """Dessine un chevron épais plein style consigne PDF.
+
+    Hexagone simple non-auto-intersectant : triangle extérieur moins un
+    triangle intérieur plus petit. Les deux sommets de l'encoche sont
+    placés SUR le bord arrière (pas en décalage interne), ce qui garantit
+    un polygone simple.
+
+    Ratios :
+      - notch_offset = 0.45·s : distance des sommets d'encoche depuis les
+        coins extérieurs le long du bord arrière
+      - tip_inset    = 0.65·s : distance du tip intérieur depuis le bord
+        arrière (inner tip est à 65% du chemin entre back et outer tip)
+    """
+    s = size / 2.0
+    notch_offset = s * 0.45
+    tip_inset = s * 0.65
+
     if direction == '>':
-        p1 = (cx - s, cy - s)
-        p2 = (cx + s // 2, cy)
-        p3 = (cx - s, cy + s)
+        # Back edge vertical à gauche (x = cx - s)
+        outer_top  = (cx - s, cy - s)
+        outer_tip  = (cx + s, cy)
+        outer_bot  = (cx - s, cy + s)
+        notch_top  = (cx - s, cy - s + notch_offset)
+        inner_tip  = (cx - s + tip_inset, cy)
+        notch_bot  = (cx - s, cy + s - notch_offset)
+        # Ordre CCW simple : outer_top → outer_tip → outer_bot → notch_bot → inner_tip → notch_top → close
+        pts = [outer_top, outer_tip, outer_bot, notch_bot, inner_tip, notch_top]
+
     elif direction == '<':
-        p1 = (cx + s, cy - s)
-        p2 = (cx - s // 2, cy)
-        p3 = (cx + s, cy + s)
+        # Back edge vertical à droite (x = cx + s)
+        outer_top  = (cx + s, cy - s)
+        outer_tip  = (cx - s, cy)
+        outer_bot  = (cx + s, cy + s)
+        notch_top  = (cx + s, cy - s + notch_offset)
+        inner_tip  = (cx + s - tip_inset, cy)
+        notch_bot  = (cx + s, cy + s - notch_offset)
+        pts = [outer_top, outer_tip, outer_bot, notch_bot, inner_tip, notch_top]
+
     elif direction == 'v':
-        p1 = (cx - s, cy - s)
-        p2 = (cx, cy + s // 2)
-        p3 = (cx + s, cy - s)
+        # Back edge horizontal en haut (y = cy - s)
+        outer_left  = (cx - s, cy - s)
+        outer_tip   = (cx, cy + s)
+        outer_right = (cx + s, cy - s)
+        notch_left  = (cx - s + notch_offset, cy - s)
+        inner_tip   = (cx, cy - s + tip_inset)
+        notch_right = (cx + s - notch_offset, cy - s)
+        pts = [outer_left, outer_tip, outer_right, notch_right, inner_tip, notch_left]
+
     elif direction == '^':
-        p1 = (cx - s, cy + s)
-        p2 = (cx, cy - s // 2)
-        p3 = (cx + s, cy + s)
+        # Back edge horizontal en bas (y = cy + s)
+        outer_left  = (cx - s, cy + s)
+        outer_tip   = (cx, cy - s)
+        outer_right = (cx + s, cy + s)
+        notch_left  = (cx - s + notch_offset, cy + s)
+        inner_tip   = (cx, cy + s - tip_inset)
+        notch_right = (cx + s - notch_offset, cy + s)
+        pts = [outer_left, outer_tip, outer_right, notch_right, inner_tip, notch_left]
     else:
         return
-    draw.line([p1, p2], fill=color, width=w, joint="curve")
-    draw.line([p2, p3], fill=color, width=w, joint="curve")
+
+    pts_int = [(int(round(x)), int(round(y))) for (x, y) in pts]
+    draw.polygon(pts_int, fill=color)
 
 
 def draw_fix6(puzzle, base_path="fix6_grid", show_solution=True):
@@ -79,7 +118,7 @@ def draw_fix6(puzzle, base_path="fix6_grid", show_solution=True):
     margin = int(margin_base * scale)
     border_w = max(2, int(1.5 * scale))
     font_size = int(42 * scale)
-    sign_size = int(gap_base * 0.85 * scale)
+    sign_size = int(gap_base * 0.70 * scale)
 
     img_size = margin * 2 + pitch * (GRID - 1) + cell
     font = _load_font(font_size)
