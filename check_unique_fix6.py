@@ -4,7 +4,7 @@
 Approche (identique à check_unique_go8.py) :
 - Phase 1 : construire un modèle CP-SAT avec toutes les contraintes (latin square,
   jaunes, signes, indices) et trouver une solution.
-- Phase 2 : interdire cette solution et chercher une seconde. Si INFEASIBLE → unique.
+- Phase 2 : interdire cette solution et chercher une seconde. Si INFEASIBLE -> unique.
 
 Retourne True ssi le solveur PROUVE qu'il n'existe qu'une seule solution.
 """
@@ -103,7 +103,7 @@ def check_uniqueness(puzzle, timeout: float = 30.0, verbose: bool = False):
     status1 = solver1.Solve(model1)
     if status1 not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         if verbose:
-            print(f"  [UNICITÉ] ✗ Aucune solution")
+            print(f"  [UNICITE] ECHEC: Aucune solution")
         return False
 
     solution1 = [[solver1.Value(V1[r][c]) for c in range(GRID)] for r in range(GRID)]
@@ -113,11 +113,11 @@ def check_uniqueness(puzzle, timeout: float = 30.0, verbose: bool = False):
                       for r in range(GRID) for c in range(GRID))
         if not matches:
             if verbose:
-                print(f"  [UNICITÉ] ✗ Solution CP-SAT diffère de l'originale")
+                print(f"  [UNICITE] ECHEC: Solution CP-SAT differe de l'originale")
             return False
 
     if verbose:
-        print(f"  [UNICITÉ] ✓ Phase 1 OK ({time.time() - t0:.2f}s)")
+        print(f"  [UNICITE] OK: Phase 1 OK ({time.time() - t0:.2f}s)")
 
     # Phase 2 : interdire la solution 1 et chercher une 2e
     model2, V2 = build_fix6_model(yellows, h_signs, v_signs, hints)
@@ -129,20 +129,20 @@ def check_uniqueness(puzzle, timeout: float = 30.0, verbose: bool = False):
 
     if status2 in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         if verbose:
-            # Afficher la 2e solution trouvée
+            # Afficher la 2e solution trouvee
             s2 = [[solver2.Value(V2[r][c]) for c in range(GRID)] for r in range(GRID)]
-            print(f"  [UNICITÉ] ✗ 2e solution trouvée → NON UNIQUE")
+            print(f"  [UNICITE] ECHEC: 2e solution trouvee -> NON UNIQUE")
             print(f"  Solution 1 : {solution1}")
             print(f"  Solution 2 : {s2}")
         return False
 
     if status2 == cp_model.UNKNOWN:
         if verbose:
-            print(f"  [UNICITÉ] ? Timeout phase 2")
+            print(f"  [UNICITE] ? Timeout phase 2")
         return None
 
     if verbose:
-        print(f"  [UNICITÉ] ✅ UNIQUE (prouvé en {time.time() - t0:.2f}s)")
+        print(f"  [UNICITE] OK: UNIQUE (prouvé en {time.time() - t0:.2f}s)")
     return True
 
 
@@ -156,11 +156,11 @@ if __name__ == "__main__":
     for i in range(20):
         p = generate_puzzle(target_hints=6, enforce_unique_history=False, max_attempts=100)
         if p is None:
-            print(f"[{i+1:02d}] ❌ échec génération")
+            print(f"[{i+1:02d}] ECHEC: échec génération")
             continue
         total += 1
         result = check_uniqueness(p, timeout=20.0, verbose=False)
-        status = "✅ UNIQUE" if result is True else ("❌ NON-UNIQUE" if result is False else "? TIMEOUT")
+        status = "OK: UNIQUE" if result is True else ("ECHEC: NON-UNIQUE" if result is False else "? TIMEOUT")
         print(f"[{i+1:02d}] {status}")
         if result is True:
             unique += 1

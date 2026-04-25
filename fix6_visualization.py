@@ -3,10 +3,17 @@
 
 from PIL import Image, ImageDraw, ImageFont
 import os
+import sys
 
 from fix6_model import GRID
 
-ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "design", "sprites")
+# Determiner le dossier de base (fonctionne avec PyInstaller)
+if getattr(sys, 'frozen', False):
+    _BASE_DIR = os.path.dirname(sys.executable)
+else:
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+ASSETS = os.path.join(_BASE_DIR, "design", "sprites")
 
 BG_COLOR     = (218, 218, 218)   # gris clair (fond fix6_exemple_1)
 TEXT_COLOR   = (0, 0, 0)
@@ -14,7 +21,7 @@ OUTER_BORDER = (0, 0, 0)         # cadre extérieur noir simple
 
 # Layout : tiles uniformes (comme la référence où case et chevron+cadre
 # ont des largeurs ≈ 90% l'une de l'autre). Les sprites sont préservés
-# en ratio et centrés dans une tile carrée → le cadre déco du chevron
+# en ratio et centrés dans une tile carrée -> le cadre déco du chevron
 # reste lisible et les cases gardent une vraie présence.
 TILE      = 240
 MARGIN    = 32
@@ -25,12 +32,15 @@ TILE_CHEV = TILE
 
 
 def _load_font(size):
-    """Arial Bold (même police que 8GO)."""
+    """Charge Arial Bold (Windows, macOS, Linux)."""
     for path in [
-        "Arial Bold.ttf", "Arial-Bold.ttf", "ArialBd.ttf",
+        "C:\\Windows\\Fonts\\arialbd.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
         "/Library/Fonts/Arial Bold.ttf",
         "/Library/Fonts/Arial.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "Arial Bold.ttf", "Arial-Bold.ttf", "ArialBd.ttf",
     ]:
         try:
             return ImageFont.truetype(path, size)
@@ -166,6 +176,6 @@ def draw_fix6(puzzle, base_path="fix6_grid", show_solution=True):
         img.save(path)
         image_paths.append(path)
         vis = "solution" if show_vals else "puzzle"
-        print(f"Image '{vis}' générée : {path}")
+        print(f"Image '{vis}' generee : {path}")
 
     return image_paths

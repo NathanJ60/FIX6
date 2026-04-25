@@ -1,4 +1,4 @@
-"""Historique persistant des puzzles FIX-6 générés."""
+"""Historique persistant des puzzles FIX-6 generes."""
 import os
 import json
 import hashlib

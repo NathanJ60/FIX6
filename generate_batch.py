@@ -27,7 +27,7 @@ def run(out_dir: str = "output", n: int = 10):
         )
         dt = time.time() - t0
         if p is None:
-            print(f"  [{i+1:02d}/{n}] ❌ Échec (target={target})")
+            print(f"  [{i+1:02d}/{n}] ECHEC: Echec (target={target})")
             continue
         valid = verify_puzzle(p)
         unique_eff = _effective_row_col_unique(p["solution"], p["yellows"])
@@ -35,12 +35,12 @@ def run(out_dir: str = "output", n: int = 10):
         n_hints = sum(1 for r in range(GRID) for c in range(GRID) if p["hints"][r][c] != 0)
         # Rejeter si CP-SAT ne prouve pas l'unicité
         if cp_unique is not True:
-            print(f"  [{i+1:02d}] ⚠️ CP-SAT rejette (unique={cp_unique}), retry...")
+            print(f"  [{i+1:02d}] ATTENTION: CP-SAT rejette (unique={cp_unique}), retry...")
             continue
         base = os.path.join(out_dir, f"FIX6_avec_indices_{i+1:02d}")
         draw_fix6(p, base)
-        status = "✅" if (valid and unique_eff) else "❌"
-        print(f"  [{i+1:02d}/{n}] {status} {n_hints} indices — {dt:.1f}s")
+        status = "OK:" if (valid and unique_eff) else "ECHEC:"
+        print(f"  [{i+1:02d}/{n}] {status} {n_hints} indices - {dt:.1f}s")
         results.append(("avec", i + 1, n_hints, valid and unique_eff))
 
     # ========== 10 sans indices ==========
@@ -54,7 +54,7 @@ def run(out_dir: str = "output", n: int = 10):
         )
         dt = time.time() - t0
         if p is None:
-            print(f"  [{i+1:02d}/{n}] ❌ Échec (sans indices)")
+            print(f"  [{i+1:02d}/{n}] ECHEC: Echec (sans indices)")
             continue
         valid = verify_puzzle(p)
         unique_eff = _effective_row_col_unique(p["solution"], p["yellows"])
@@ -62,12 +62,12 @@ def run(out_dir: str = "output", n: int = 10):
         n_hints = sum(1 for r in range(GRID) for c in range(GRID) if p["hints"][r][c] != 0)
         # Rejeter si CP-SAT ne prouve pas l'unicité
         if cp_unique is not True:
-            print(f"  [{i+1:02d}] ⚠️ CP-SAT rejette (unique={cp_unique}), retry...")
+            print(f"  [{i+1:02d}] ATTENTION: CP-SAT rejette (unique={cp_unique}), retry...")
             continue
         base = os.path.join(out_dir, f"FIX6_sans_indices_{i+1:02d}")
         draw_fix6(p, base)
-        status = "✅" if (valid and unique_eff and n_hints == 0) else "❌"
-        print(f"  [{i+1:02d}/{n}] {status} {n_hints} indices — {dt:.1f}s")
+        status = "OK:" if (valid and unique_eff and n_hints == 0) else "ECHEC:"
+        print(f"  [{i+1:02d}/{n}] {status} {n_hints} indices - {dt:.1f}s")
         results.append(("sans", i + 1, n_hints, valid and unique_eff and n_hints == 0))
 
     total_dt = time.time() - total_start

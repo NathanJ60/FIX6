@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""fix6_model.py - Générateur de puzzles FIX-6.
+"""fix6_model.py - Generateur de puzzles FIX-6.
 
 Règles:
 - Grille 6×6, chiffres 1..6, chaque chiffre une seule fois par ligne et par colonne.
@@ -186,7 +186,7 @@ def _build_hints(solution, yellows, h_signs, v_signs, target_hints=None):
     """
     cells = [(r, c) for r in range(GRID) for c in range(GRID)]
 
-    # Cas spécial : 0 indice — vérifier si les contraintes suffisent
+    # Cas spécial : 0 indice - verifier si les contraintes suffisent
     hints = [[0] * GRID for _ in range(GRID)]
     n_sol = count_solutions(hints, yellows, h_signs, v_signs, limit=2)
     if n_sol == 1:
@@ -304,32 +304,32 @@ def verify_puzzle(puzzle) -> bool:
     # Latin square
     for r in range(GRID):
         if sorted(sol[r]) != DIGITS:
-            print(f"❌ Ligne {r}: {sol[r]}")
+            print(f"ECHEC: Ligne {r}: {sol[r]}")
             return False
     for c in range(GRID):
         col = [sol[r][c] for r in range(GRID)]
         if sorted(col) != DIGITS:
-            print(f"❌ Colonne {c}: {col}")
+            print(f"ECHEC: Colonne {c}: {col}")
             return False
 
     # Signes
     hs, vs, ok = _compute_signs(sol, yellows)
     if not ok or hs != h_signs or vs != v_signs:
-        print("❌ Signes incohérents avec la solution")
+        print("ECHEC: Signes incohérents avec la solution")
         return False
 
     # Unicité des valeurs effectives par ligne et colonne
     if not _effective_row_col_unique(sol, yellows):
-        print("❌ Doublon de valeur effective sur une ligne ou colonne")
+        print("ECHEC: Doublon de valeur effective sur une ligne ou colonne")
         return False
 
     # Unicité
     n = count_solutions(hints, yellows, h_signs, v_signs, limit=2)
     if n != 1:
-        print(f"❌ {n} solutions trouvées (attendu 1)")
+        print(f"ECHEC: {n} solutions trouvees (attendu 1)")
         return False
 
-    print("✅ FIX-6 valide et unique")
+    print("OK: FIX-6 valide et unique")
     return True
 
 
@@ -365,10 +365,10 @@ def print_puzzle(puzzle):
 
 
 if __name__ == "__main__":
-    print("Génération d'un puzzle FIX-6...")
+    print("Generation d'un puzzle FIX-6...")
     p = generate_puzzle(enforce_unique_history=False)
     if p:
         print_puzzle(p)
         verify_puzzle(p)
     else:
-        print("❌ Échec")
+        print("ECHEC: Echec")

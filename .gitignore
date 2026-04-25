@@ -6,3 +6,8 @@ __pycache__/
 temp_fix6/
 output/
 data/
+
+# Build files (PyInstaller)
+build/
+dist/
+*.spec
