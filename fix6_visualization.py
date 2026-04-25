@@ -1,23 +1,31 @@
 #!/usr/bin/env python3
-"""fix6_visualization.py - Rendu PNG des puzzles FIX-6."""
+"""fix6_visualization.py - Rendu PNG par PATCHWORK des sprites du gabarit."""
 
 from PIL import Image, ImageDraw, ImageFont
 import os
 
 from fix6_model import GRID
 
-TARGET_PX = 2000
+ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "design", "sprites")
 
-BG_COLOR = "#D8D8D8"
-CELL_COLOR = "#FFFFFF"
-YELLOW_COLOR = "#FFFF54"
-BORDER_COLOR = "#000000"
-SIGN_COLOR = "#000000"
-SIGN_BG = "#D8D8D8"
-TEXT_COLOR = "#000000"
+BG_COLOR     = (218, 218, 218)   # gris clair (fond fix6_exemple_1)
+TEXT_COLOR   = (0, 0, 0)
+OUTER_BORDER = (0, 0, 0)         # cadre extérieur noir simple
+
+# Layout : tiles uniformes (comme la référence où case et chevron+cadre
+# ont des largeurs ≈ 90% l'une de l'autre). Les sprites sont préservés
+# en ratio et centrés dans une tile carrée → le cadre déco du chevron
+# reste lisible et les cases gardent une vraie présence.
+TILE      = 240
+MARGIN    = 32
+
+# Alias pour rétrocompatibilité dans le reste du module
+TILE_CASE = TILE
+TILE_CHEV = TILE
 
 
 def _load_font(size):
+    """Arial Bold (même police que 8GO)."""
     for path in [
         "Arial Bold.ttf", "Arial-Bold.ttf", "ArialBd.ttf",
         "/Library/Fonts/Arial Bold.ttf",
@@ -31,143 +39,129 @@ def _load_font(size):
     return ImageFont.load_default()
 
 
-def _draw_chevron(draw, cx, cy, size, direction, color=SIGN_COLOR):
-    """Dessine un chevron épais plein style consigne PDF.
+_SPRITES_CACHE = None
 
-    Hexagone simple non-auto-intersectant : triangle extérieur moins un
-    triangle intérieur plus petit. Les deux sommets de l'encoche sont
-    placés SUR le bord arrière (pas en décalage interne), ce qui garantit
-    un polygone simple.
 
-    Ratios :
-      - notch_offset = 0.45·s : distance des sommets d'encoche depuis les
-        coins extérieurs le long du bord arrière
-      - tip_inset    = 0.65·s : distance du tip intérieur depuis le bord
-        arrière (inner tip est à 65% du chemin entre back et outer tip)
-    """
-    s = size / 2.0
-    notch_offset = s * 0.45
-    tip_inset = s * 0.65
+def _fit_sprite(sprite, target_w, target_h, bg=BG_COLOR):
+    """Redimensionne un sprite en préservant son ratio et le centre dans une
+    tile target_w×target_h sur fond beige (pas de déformation)."""
+    sw, sh = sprite.size
+    # Échelle qui fait rentrer le sprite dans la tile en gardant le ratio
+    scale = min(target_w / sw, target_h / sh)
+    new_w = max(1, int(sw * scale))
+    new_h = max(1, int(sh * scale))
+    resized = sprite.resize((new_w, new_h), Image.LANCZOS)
+    tile = Image.new("RGB", (target_w, target_h), bg)
+    ox = (target_w - new_w) // 2
+    oy = (target_h - new_h) // 2
+    tile.paste(resized, (ox, oy))
+    return tile
 
-    if direction == '>':
-        # Back edge vertical à gauche (x = cx - s)
-        outer_top  = (cx - s, cy - s)
-        outer_tip  = (cx + s, cy)
-        outer_bot  = (cx - s, cy + s)
-        notch_top  = (cx - s, cy - s + notch_offset)
-        inner_tip  = (cx - s + tip_inset, cy)
-        notch_bot  = (cx - s, cy + s - notch_offset)
-        # Ordre CCW simple : outer_top → outer_tip → outer_bot → notch_bot → inner_tip → notch_top → close
-        pts = [outer_top, outer_tip, outer_bot, notch_bot, inner_tip, notch_top]
 
-    elif direction == '<':
-        # Back edge vertical à droite (x = cx + s)
-        outer_top  = (cx + s, cy - s)
-        outer_tip  = (cx - s, cy)
-        outer_bot  = (cx + s, cy + s)
-        notch_top  = (cx + s, cy - s + notch_offset)
-        inner_tip  = (cx + s - tip_inset, cy)
-        notch_bot  = (cx + s, cy + s - notch_offset)
-        pts = [outer_top, outer_tip, outer_bot, notch_bot, inner_tip, notch_top]
+def _load_sprites():
+    """Charge et prépare les 6 sprites aux bonnes tailles."""
+    global _SPRITES_CACHE
+    if _SPRITES_CACHE is not None:
+        return _SPRITES_CACHE
+    raw = {}
+    for name in ("case_white", "case_yellow",
+                 "chev_right", "chev_left", "chev_up", "chev_down"):
+        p = os.path.join(ASSETS, f"{name}.png")
+        raw[name] = Image.open(p).convert("RGB")
 
-    elif direction == 'v':
-        # Back edge horizontal en haut (y = cy - s)
-        outer_left  = (cx - s, cy - s)
-        outer_tip   = (cx, cy + s)
-        outer_right = (cx + s, cy - s)
-        notch_left  = (cx - s + notch_offset, cy - s)
-        inner_tip   = (cx, cy - s + tip_inset)
-        notch_right = (cx + s - notch_offset, cy - s)
-        pts = [outer_left, outer_tip, outer_right, notch_right, inner_tip, notch_left]
-
-    elif direction == '^':
-        # Back edge horizontal en bas (y = cy + s)
-        outer_left  = (cx - s, cy + s)
-        outer_tip   = (cx, cy - s)
-        outer_right = (cx + s, cy + s)
-        notch_left  = (cx - s + notch_offset, cy + s)
-        inner_tip   = (cx, cy + s - tip_inset)
-        notch_right = (cx + s - notch_offset, cy + s)
-        pts = [outer_left, outer_tip, outer_right, notch_right, inner_tip, notch_left]
-    else:
-        return
-
-    pts_int = [(int(round(x)), int(round(y))) for (x, y) in pts]
-    draw.polygon(pts_int, fill=color)
+    # Cases : tile carrée TILE_CASE × TILE_CASE
+    sprites = {
+        "case_white":  _fit_sprite(raw["case_white"],  TILE_CASE, TILE_CASE),
+        "case_yellow": _fit_sprite(raw["case_yellow"], TILE_CASE, TILE_CASE),
+        # Chevrons H : tile rectangulaire TILE_CHEV (large) × TILE_CASE (haut)
+        "chev_right":  _fit_sprite(raw["chev_right"],  TILE_CHEV, TILE_CASE),
+        "chev_left":   _fit_sprite(raw["chev_left"],   TILE_CHEV, TILE_CASE),
+        # Chevrons V : tile rectangulaire TILE_CASE (large) × TILE_CHEV (haut)
+        "chev_up":     _fit_sprite(raw["chev_up"],     TILE_CASE, TILE_CHEV),
+        "chev_down":   _fit_sprite(raw["chev_down"],   TILE_CASE, TILE_CHEV),
+    }
+    _SPRITES_CACHE = sprites
+    return sprites
 
 
 def draw_fix6(puzzle, base_path="fix6_grid", show_solution=True):
-    """Génère les images PNG puzzle + solution."""
     solution = puzzle['solution']
-    yellows = puzzle['yellows']
-    hints = puzzle['hints']
-    h_signs = puzzle['h_signs']
-    v_signs = puzzle['v_signs']
+    yellows  = puzzle['yellows']
+    hints    = puzzle['hints']
+    h_signs  = puzzle['h_signs']
+    v_signs  = puzzle['v_signs']
 
-    # Proportions
-    margin_base = 8
-    cell_base = 70
-    gap_base = 30  # espace pour les signes entre cases
-    pitch_base = cell_base + gap_base
-    total_base = margin_base * 2 + pitch_base * (GRID - 1) + cell_base
+    sprites = _load_sprites()
 
-    scale = TARGET_PX / total_base
-    cell = int(cell_base * scale)
-    gap = int(gap_base * scale)
-    pitch = int(pitch_base * scale)
-    margin = int(margin_base * scale)
-    border_w = max(2, int(1.5 * scale))
-    font_size = int(42 * scale)
-    sign_size = int(gap_base * 0.70 * scale)
+    # Dimensions globales
+    cells_w = GRID * TILE_CASE + (GRID - 1) * TILE_CHEV
+    img_size = cells_w + 2 * MARGIN
 
-    img_size = margin * 2 + pitch * (GRID - 1) + cell
-    font = _load_font(font_size)
+    # Police : Arial Bold, taille proportionnelle
+    font = _load_font(int(TILE_CASE * 0.55))
     image_paths = []
+
+    # Coordonnées des origines des cellules (cases) et chevrons
+    def case_origin(r, c):
+        x = MARGIN + c * (TILE_CASE + TILE_CHEV)
+        y = MARGIN + r * (TILE_CASE + TILE_CHEV)
+        return x, y
+
+    def chev_h_origin(r, c):
+        # Chevron horizontal entre cases (r, c) et (r, c+1)
+        x = MARGIN + c * (TILE_CASE + TILE_CHEV) + TILE_CASE
+        y = MARGIN + r * (TILE_CASE + TILE_CHEV)
+        return x, y
+
+    def chev_v_origin(r, c):
+        # Chevron vertical entre cases (r, c) et (r+1, c)
+        x = MARGIN + c * (TILE_CASE + TILE_CHEV)
+        y = MARGIN + r * (TILE_CASE + TILE_CHEV) + TILE_CASE
+        return x, y
 
     for label, show_vals in [("solution", True), ("puzzle", False)]:
         path = f"{base_path}_{label}.png"
         img = Image.new("RGB", (img_size, img_size), BG_COLOR)
-        draw = ImageDraw.Draw(img)
 
-        def cell_topleft(r, c):
-            return (margin + c * pitch, margin + r * pitch)
-
-        # Cases
+        # 1) Cases
         for r in range(GRID):
             for c in range(GRID):
-                x, y = cell_topleft(r, c)
-                bg = YELLOW_COLOR if yellows[r][c] else CELL_COLOR
-                draw.rectangle([x, y, x + cell, y + cell],
-                               fill=bg, outline=BORDER_COLOR, width=border_w)
-                val = solution[r][c] if show_vals else hints[r][c]
-                if val and val != 0:
-                    text = str(val)
-                    bbox = draw.textbbox((0, 0), text, font=font)
-                    tw = bbox[2] - bbox[0]
-                    th = bbox[3] - bbox[1]
-                    tx = x + (cell - tw) // 2 - bbox[0]
-                    ty = y + (cell - th) // 2 - bbox[1]
-                    draw.text((tx, ty), text, fill=TEXT_COLOR, font=font)
+                x, y = case_origin(r, c)
+                spr = sprites["case_yellow"] if yellows[r][c] else sprites["case_white"]
+                img.paste(spr, (x, y))
 
-        # Signes horizontaux (entre (r,c) et (r,c+1))
+        # 2) Chevrons horizontaux
         for r in range(GRID):
             for c in range(GRID - 1):
-                x, y = cell_topleft(r, c)
-                cx = x + cell + gap // 2
-                cy = y + cell // 2
-                _draw_chevron(draw, cx, cy, sign_size, h_signs[r][c])
+                x, y = chev_h_origin(r, c)
+                spr = sprites["chev_right"] if h_signs[r][c] == '>' else sprites["chev_left"]
+                img.paste(spr, (x, y))
 
-        # Signes verticaux (entre (r,c) et (r+1,c))
+        # 3) Chevrons verticaux
         for r in range(GRID - 1):
             for c in range(GRID):
-                x, y = cell_topleft(r, c)
-                cx = x + cell // 2
-                cy = y + cell + gap // 2
-                _draw_chevron(draw, cx, cy, sign_size, v_signs[r][c])
+                x, y = chev_v_origin(r, c)
+                spr = sprites["chev_down"] if v_signs[r][c] == 'v' else sprites["chev_up"]
+                img.paste(spr, (x, y))
 
-        # Bordure extérieure
-        draw.rectangle([(0, 0), (img_size - 1, img_size - 1)],
-                       outline=BORDER_COLOR, width=max(1, int(2 * scale)))
+        # 4) Chiffres centrés (anchor="mm" = milieu visuel)
+        draw = ImageDraw.Draw(img)
+        for r in range(GRID):
+            for c in range(GRID):
+                val = solution[r][c] if show_vals else hints[r][c]
+                if not val:
+                    continue
+                x, y = case_origin(r, c)
+                cx = x + TILE_CASE // 2
+                cy = y + TILE_CASE // 2
+                draw.text((cx, cy), str(val),
+                          fill=TEXT_COLOR, font=font, anchor="mm")
+
+        # 5) Cadre extérieur marine
+        outer_w = max(3, TILE_CASE // 60)
+        for k in range(outer_w):
+            draw.rectangle([k, k, img_size - 1 - k, img_size - 1 - k],
+                           outline=OUTER_BORDER)
 
         img.save(path)
         image_paths.append(path)
