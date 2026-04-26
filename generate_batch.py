@@ -6,7 +6,8 @@ Usage:
 
   n_per_level    nombre de grilles par niveau (défaut 5)
 
-Niveaux générés (4) :
+Niveaux générés (5) :
+  - tres_facile  : 15 indices
   - facile       : 8-10 indices
   - moyen        : 5-8 indices
   - difficile    : 1-3 indices
@@ -22,7 +23,7 @@ from fix6_visualization import draw_fix6
 from check_unique_fix6 import check_uniqueness as cp_sat_check_uniqueness
 
 
-LEVELS = ["facile", "moyen", "difficile", "sans_indices"]
+LEVELS = ["tres_facile", "facile", "moyen", "difficile", "sans_indices"]
 
 
 def run(out_dir: str = "output", n: int = 5):

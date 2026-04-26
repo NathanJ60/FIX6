@@ -20,6 +20,7 @@ DIGITS = list(range(1, GRID + 1))
 # Plages d'indices par niveau de difficulté (inclusives, tirage uniforme).
 # "sans_indices" force exactement 0 indice.
 DIFFICULTY_HINTS = {
+    "tres_facile":  (15, 15),
     "facile":       (8, 10),
     "moyen":        (5, 8),
     "difficile":    (1, 3),
@@ -308,7 +309,8 @@ def generate_puzzle_at_level(difficulty: str = "moyen",
                              max_attempts: int = 200):
     """Génère un puzzle FIX-6 dont le nombre d'indices respecte la plage du niveau.
 
-    difficulty: "facile" | "moyen" | "difficile" | "sans_indices"
+    difficulty: "tres_facile" | "facile" | "moyen" | "difficile" | "sans_indices"
+        - tres_facile : 15 indices
         - facile      : 8-10 indices
         - moyen       : 5-8 indices
         - difficile   : 1-3 indices

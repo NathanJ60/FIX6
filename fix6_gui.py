@@ -43,6 +43,7 @@ class Fix6App(QMainWindow):
         self.difficulty_combo = QComboBox()
         # (label affiché, clé interne)
         self._difficulty_options = [
+            ("Très facile (15 indices)", "tres_facile"),
             ("Facile (8-10 indices)",    "facile"),
             ("Moyen (5-8 indices)",      "moyen"),
             ("Difficile (1-3 indices)",  "difficile"),
@@ -50,7 +51,7 @@ class Fix6App(QMainWindow):
         ]
         for label_text, key in self._difficulty_options:
             self.difficulty_combo.addItem(label_text, key)
-        self.difficulty_combo.setCurrentIndex(1)  # défaut: Moyen
+        self.difficulty_combo.setCurrentIndex(2)  # défaut: Moyen
         diff_layout.addWidget(self.difficulty_combo)
         diff_layout.addStretch()
         layout.addLayout(diff_layout)
