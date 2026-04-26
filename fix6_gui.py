@@ -6,12 +6,13 @@ import os
 import shutil
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QPushButton, QVBoxLayout,
-    QHBoxLayout, QWidget, QLabel, QSizePolicy, QFileDialog, QMessageBox,
+    QHBoxLayout, QWidget, QLabel, QComboBox,
+    QSizePolicy, QFileDialog, QMessageBox,
 )
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt
 
-from fix6_model import generate_puzzle, verify_puzzle
+from fix6_model import generate_puzzle_at_level, verify_puzzle, DIFFICULTY_HINTS
 from fix6_visualization import draw_fix6
 
 
@@ -36,6 +37,24 @@ class Fix6App(QMainWindow):
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
+        # Niveau de difficulté
+        diff_layout = QHBoxLayout()
+        diff_layout.addWidget(QLabel("Niveau :"))
+        self.difficulty_combo = QComboBox()
+        # (label affiché, clé interne)
+        self._difficulty_options = [
+            ("Facile (8-10 indices)",    "facile"),
+            ("Moyen (5-8 indices)",      "moyen"),
+            ("Difficile (1-3 indices)",  "difficile"),
+            ("Sans indices",             "sans_indices"),
+        ]
+        for label_text, key in self._difficulty_options:
+            self.difficulty_combo.addItem(label_text, key)
+        self.difficulty_combo.setCurrentIndex(1)  # défaut: Moyen
+        diff_layout.addWidget(self.difficulty_combo)
+        diff_layout.addStretch()
+        layout.addLayout(diff_layout)
+
         gen_btn = QPushButton("Générer un puzzle")
         gen_btn.clicked.connect(self.generate)
         layout.addWidget(gen_btn)
@@ -57,14 +76,19 @@ class Fix6App(QMainWindow):
             images_layout.addWidget(lbl, 1)
         layout.addLayout(images_layout)
 
+    def _selected_difficulty(self) -> str:
+        return self.difficulty_combo.itemData(self.difficulty_combo.currentIndex()) or "moyen"
+
     def generate(self):
         self.solution_label.setText("Génération...")
         self.puzzle_label.setText("")
         QApplication.processEvents()
 
-        puzzle = generate_puzzle()
+        difficulty = self._selected_difficulty()
+        puzzle = generate_puzzle_at_level(difficulty=difficulty)
         if not puzzle:
-            QMessageBox.critical(self, "Échec", "Impossible de générer.")
+            QMessageBox.critical(self, "Échec",
+                                 f"Impossible de générer un puzzle '{difficulty}'.")
             self.solution_label.setText("Échec")
             return
 
