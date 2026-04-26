@@ -17,6 +17,15 @@ from fix6_model_history import is_unique as hist_unique, add_to_history
 GRID = 6
 DIGITS = list(range(1, GRID + 1))
 
+# Plages d'indices par niveau de difficulté (inclusives, tirage uniforme).
+# "sans_indices" force exactement 0 indice.
+DIFFICULTY_HINTS = {
+    "facile":       (8, 10),
+    "moyen":        (5, 8),
+    "difficile":    (1, 3),
+    "sans_indices": (0, 0),
+}
+
 
 def effective(value: int, yellow: bool) -> int:
     """Valeur effective (doublée si case jaune)."""
@@ -290,6 +299,41 @@ def generate_puzzle(num_yellows: int = 7, target_hints=None,
 
         return puzzle
 
+    return None
+
+
+def generate_puzzle_at_level(difficulty: str = "moyen",
+                             num_yellows: int = 7,
+                             enforce_unique_history: bool = True,
+                             max_attempts: int = 200):
+    """Génère un puzzle FIX-6 dont le nombre d'indices respecte la plage du niveau.
+
+    difficulty: "facile" | "moyen" | "difficile" | "sans_indices"
+        - facile      : 8-10 indices
+        - moyen       : 5-8 indices
+        - difficile   : 1-3 indices
+        - sans_indices: 0 indice
+    """
+    if difficulty not in DIFFICULTY_HINTS:
+        raise ValueError(f"Niveau inconnu : {difficulty!r}. "
+                         f"Choisir parmi {list(DIFFICULTY_HINTS)}.")
+    lo, hi = DIFFICULTY_HINTS[difficulty]
+
+    for _ in range(max_attempts):
+        target = lo if lo == hi else random.randint(lo, hi)
+        p = generate_puzzle(
+            num_yellows=num_yellows,
+            target_hints=target,
+            enforce_unique_history=enforce_unique_history,
+            max_attempts=80,
+        )
+        if p is None:
+            continue
+        n_hints = sum(1 for r in range(GRID) for c in range(GRID) if p['hints'][r][c] != 0)
+        if lo <= n_hints <= hi:
+            p['difficulty'] = difficulty
+            p['num_hints'] = n_hints
+            return p
     return None
 
 
