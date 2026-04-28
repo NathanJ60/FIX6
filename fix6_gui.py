@@ -13,7 +13,10 @@ from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt
 
 from fix6_model import generate_puzzle_at_level, verify_puzzle, DIFFICULTY_HINTS
-from fix6_visualization import draw_fix6
+from fix6_visualization import (
+    draw_fix6, draw_fix6_svg, draw_fix6_pdf,
+    SVG_AVAILABLE, PDF_AVAILABLE,
+)
 
 
 class Fix6App(QMainWindow):
@@ -64,6 +67,16 @@ class Fix6App(QMainWindow):
         save_png = QPushButton("Enregistrer (PNG)")
         save_png.clicked.connect(self.save_png)
         save_layout.addWidget(save_png)
+
+        save_svg = QPushButton("Enregistrer (SVG)")
+        save_svg.clicked.connect(self.save_svg)
+        save_svg.setEnabled(SVG_AVAILABLE)
+        save_layout.addWidget(save_svg)
+
+        save_pdf = QPushButton("Enregistrer (PDF)")
+        save_pdf.clicked.connect(self.save_pdf)
+        save_pdf.setEnabled(PDF_AVAILABLE)
+        save_layout.addWidget(save_pdf)
         layout.addLayout(save_layout)
 
         images_layout = QHBoxLayout()
@@ -123,6 +136,29 @@ class Fix6App(QMainWindow):
             shutil.copy2(img, os.path.join(save_dir, f"FIX6_{n}{suffix}.png"))
         self.save_counter += 1
         QMessageBox.information(self, "OK", f"Sauvegardé dans {save_dir}")
+
+    def _save_vector(self, fmt, draw_fn):
+        if not self.puzzle:
+            QMessageBox.warning(self, "Attention", "Aucun puzzle généré.")
+            return
+        save_dir = QFileDialog.getExistingDirectory(self, "Dossier", os.path.expanduser("~"))
+        if not save_dir:
+            return
+        n = self.save_counter
+        base = os.path.join(save_dir, f"FIX6_{n}")
+        try:
+            draw_fn(self.puzzle, base)
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", str(e))
+            return
+        self.save_counter += 1
+        QMessageBox.information(self, "OK", f"{fmt} sauvegardé dans {save_dir}")
+
+    def save_svg(self):
+        self._save_vector("SVG", draw_fix6_svg)
+
+    def save_pdf(self):
+        self._save_vector("PDF", draw_fix6_pdf)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

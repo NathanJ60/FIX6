@@ -1,16 +1,38 @@
 #!/usr/bin/env python3
-"""fix6_visualization.py - Rendu PNG par PATCHWORK des sprites du gabarit."""
+"""fix6_visualization.py - Rendu FIX-6 (PNG par sprites + SVG/PDF vectoriels)."""
 
 from PIL import Image, ImageDraw, ImageFont
 import os
 
 from fix6_model import GRID
 
+try:
+    import svgwrite
+    SVG_AVAILABLE = True
+except ImportError:
+    SVG_AVAILABLE = False
+
+try:
+    from reportlab.pdfgen import canvas as _pdf_canvas
+    from reportlab.lib.colors import HexColor
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
+
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "design", "sprites")
 
 BG_COLOR     = (218, 218, 218)   # gris clair (fond fix6_exemple_1)
 TEXT_COLOR   = (0, 0, 0)
 OUTER_BORDER = (0, 0, 0)         # cadre extérieur noir simple
+
+# Couleurs vectorielles (SVG/PDF) — palette equivalente aux sprites
+BG_HEX     = "#DADADA"
+WHITE_HEX  = "#FFFFFF"
+YELLOW_HEX = "#FFFF54"
+BORDER_HEX = "#000000"
+TEXT_HEX   = "#000000"
+
+TARGET_CM = 12  # Taille physique cible pour SVG/PDF
 
 # Layout : tiles uniformes (comme la référence où case et chevron+cadre
 # ont des largeurs ≈ 90% l'une de l'autre). Les sprites sont préservés
@@ -167,5 +189,233 @@ def draw_fix6(puzzle, base_path="fix6_grid", show_solution=True):
         image_paths.append(path)
         vis = "solution" if show_vals else "puzzle"
         print(f"Image '{vis}' générée : {path}")
+
+    return image_paths
+
+
+# =============================================================================
+# Layout vectoriel partage (SVG / PDF)
+# =============================================================================
+
+def _vector_layout():
+    """Unites de base pour les rendus vectoriels (mm-like, scalees a 12 cm)."""
+    cell = 80           # case carree
+    chev = 80           # tile chevron carree
+    margin = 12
+    total = 2 * margin + GRID * cell + (GRID - 1) * chev
+    return cell, chev, margin, total
+
+
+def _case_xy(r, c, cell, chev, margin):
+    x = margin + c * (cell + chev)
+    y = margin + r * (cell + chev)
+    return x, y
+
+
+def _chev_h_xy(r, c, cell, chev, margin):
+    x = margin + c * (cell + chev) + cell
+    y = margin + r * (cell + chev)
+    return x, y
+
+
+def _chev_v_xy(r, c, cell, chev, margin):
+    x = margin + c * (cell + chev)
+    y = margin + r * (cell + chev) + cell
+    return x, y
+
+
+def _chev_polygon(kind, ox, oy, w, h, inset=0.22):
+    """Coordonnees d'un triangle plein representant le chevron.
+
+    kind: 'right' (>), 'left' (<), 'up' (^), 'down' (v).
+    Retourne une liste de tuples (x, y).
+    """
+    pad_x = w * inset
+    pad_y = h * inset
+    x0, y0 = ox + pad_x, oy + pad_y
+    x1, y1 = ox + w - pad_x, oy + h - pad_y
+    cx, cy = ox + w / 2, oy + h / 2
+    if kind == 'right':
+        return [(x0, y0), (x1, cy), (x0, y1)]
+    if kind == 'left':
+        return [(x1, y0), (x0, cy), (x1, y1)]
+    if kind == 'up':
+        return [(x0, y1), (cx, y0), (x1, y1)]
+    # down
+    return [(x0, y0), (cx, y1), (x1, y0)]
+
+
+# =============================================================================
+# SVG
+# =============================================================================
+
+def draw_fix6_svg(puzzle, base_path="fix6_grid"):
+    """Genere les SVG puzzle + solution. Necessite svgwrite."""
+    if not SVG_AVAILABLE:
+        raise ImportError("svgwrite non installe")
+
+    solution = puzzle['solution']
+    yellows  = puzzle['yellows']
+    hints    = puzzle['hints']
+    h_signs  = puzzle['h_signs']
+    v_signs  = puzzle['v_signs']
+
+    cell, chev, margin, total = _vector_layout()
+    border_w = 2
+    outer_w = 4
+    font_size = int(cell * 0.55)
+
+    image_paths = []
+    for label, show_vals in [("solution", True), ("puzzle", False)]:
+        path = f"{base_path}_{label}.svg"
+        dwg = svgwrite.Drawing(
+            path,
+            size=(f"{TARGET_CM}cm", f"{TARGET_CM}cm"),
+            viewBox=f"0 0 {total} {total}",
+        )
+        dwg.add(dwg.rect(insert=(0, 0), size=(total, total), fill=BG_HEX))
+
+        # Cases
+        for r in range(GRID):
+            for c in range(GRID):
+                x, y = _case_xy(r, c, cell, chev, margin)
+                fill = YELLOW_HEX if yellows[r][c] else WHITE_HEX
+                dwg.add(dwg.rect(insert=(x, y), size=(cell, cell),
+                                 fill=fill, stroke=BORDER_HEX, stroke_width=border_w))
+                val = solution[r][c] if show_vals else hints[r][c]
+                if val:
+                    dwg.add(dwg.text(
+                        str(val),
+                        insert=(x + cell / 2, y + cell / 2 + font_size / 3),
+                        text_anchor="middle",
+                        font_family="Helvetica, Arial, sans-serif",
+                        font_size=f"{font_size}px",
+                        font_weight="bold",
+                        fill=TEXT_HEX,
+                    ))
+
+        # Chevrons horizontaux
+        for r in range(GRID):
+            for c in range(GRID - 1):
+                ox, oy = _chev_h_xy(r, c, cell, chev, margin)
+                kind = 'right' if h_signs[r][c] == '>' else 'left'
+                pts = _chev_polygon(kind, ox, oy, chev, cell)
+                dwg.add(dwg.polygon(points=pts, fill=BORDER_HEX,
+                                    stroke=BORDER_HEX, stroke_width=1))
+
+        # Chevrons verticaux
+        for r in range(GRID - 1):
+            for c in range(GRID):
+                ox, oy = _chev_v_xy(r, c, cell, chev, margin)
+                kind = 'down' if v_signs[r][c] == 'v' else 'up'
+                pts = _chev_polygon(kind, ox, oy, cell, chev)
+                dwg.add(dwg.polygon(points=pts, fill=BORDER_HEX,
+                                    stroke=BORDER_HEX, stroke_width=1))
+
+        # Cadre exterieur
+        dwg.add(dwg.rect(insert=(0, 0), size=(total, total),
+                         fill="none", stroke=BORDER_HEX, stroke_width=outer_w))
+        dwg.save()
+        image_paths.append(path)
+        print(f"SVG '{label}' genere : {path}")
+
+    return image_paths
+
+
+# =============================================================================
+# PDF
+# =============================================================================
+
+def draw_fix6_pdf(puzzle, base_path="fix6_grid"):
+    """Genere les PDF puzzle + solution. Necessite reportlab."""
+    if not PDF_AVAILABLE:
+        raise ImportError("reportlab non installe")
+
+    solution = puzzle['solution']
+    yellows  = puzzle['yellows']
+    hints    = puzzle['hints']
+    h_signs  = puzzle['h_signs']
+    v_signs  = puzzle['v_signs']
+
+    cell_base, chev_base, margin_base, total_base = _vector_layout()
+    target_size = TARGET_CM * 28.35  # cm -> pt
+    s = target_size / total_base
+    cell = cell_base * s
+    chev = chev_base * s
+    margin = margin_base * s
+    size = target_size
+    font_size = cell * 0.55
+    border_w = 2 * s
+    outer_w = 4 * s
+
+    image_paths = []
+    for label, show_vals in [("solution", True), ("puzzle", False)]:
+        path = f"{base_path}_{label}.pdf"
+        c = _pdf_canvas.Canvas(path, pagesize=(size, size))
+
+        # Fond
+        c.setFillColor(HexColor(BG_HEX))
+        c.rect(0, 0, size, size, fill=1, stroke=0)
+
+        # Cases
+        for r in range(GRID):
+            for ci in range(GRID):
+                x = margin + ci * (cell + chev)
+                # ReportLab Y croit vers le haut
+                y = size - (margin + r * (cell + chev) + cell)
+                fill = YELLOW_HEX if yellows[r][ci] else WHITE_HEX
+                c.setFillColor(HexColor(fill))
+                c.setStrokeColor(HexColor(BORDER_HEX))
+                c.setLineWidth(border_w)
+                c.rect(x, y, cell, cell, fill=1, stroke=1)
+                val = solution[r][ci] if show_vals else hints[r][ci]
+                if val:
+                    t = str(val)
+                    c.setFillColor(HexColor(TEXT_HEX))
+                    c.setFont("Helvetica-Bold", font_size)
+                    tw = c.stringWidth(t, "Helvetica-Bold", font_size)
+                    c.drawString(x + (cell - tw) / 2,
+                                 y + cell / 2 - font_size / 3, t)
+
+        def _draw_polygon_pdf(pts):
+            p = c.beginPath()
+            p.moveTo(*pts[0])
+            for px, py in pts[1:]:
+                p.lineTo(px, py)
+            p.close()
+            c.setFillColor(HexColor(BORDER_HEX))
+            c.setStrokeColor(HexColor(BORDER_HEX))
+            c.drawPath(p, fill=1, stroke=1)
+
+        # Chevrons horizontaux
+        for r in range(GRID):
+            for ci in range(GRID - 1):
+                ox = margin + ci * (cell + chev) + cell
+                oy_top = margin + r * (cell + chev)
+                oy = size - (oy_top + cell)
+                kind = 'right' if h_signs[r][ci] == '>' else 'left'
+                # _chev_polygon attend coords ecran (Y vers le bas) ; on flippe en PDF
+                pts_top = _chev_polygon(kind, ox, oy_top, chev, cell)
+                pts_pdf = [(px, size - py) for (px, py) in pts_top]
+                _draw_polygon_pdf(pts_pdf)
+
+        # Chevrons verticaux
+        for r in range(GRID - 1):
+            for ci in range(GRID):
+                ox = margin + ci * (cell + chev)
+                oy_top = margin + r * (cell + chev) + cell
+                kind = 'down' if v_signs[r][ci] == 'v' else 'up'
+                pts_top = _chev_polygon(kind, ox, oy_top, cell, chev)
+                pts_pdf = [(px, size - py) for (px, py) in pts_top]
+                _draw_polygon_pdf(pts_pdf)
+
+        # Cadre exterieur
+        c.setStrokeColor(HexColor(BORDER_HEX))
+        c.setLineWidth(outer_w)
+        c.rect(0, 0, size, size, fill=0, stroke=1)
+
+        c.save()
+        image_paths.append(path)
+        print(f"PDF '{label}' genere : {path}")
 
     return image_paths
